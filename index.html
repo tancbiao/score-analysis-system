@@ -21680,7 +21680,7 @@ const App = {
   giftSet: new Set(),
   currentTab: 'overview',
   // 排序状态
-  classSortKey: 'avgDesc',  // 'name', 'avgDesc', 'avgAsc', 'passDesc', 'passAsc', 'exclDesc', 'exclAsc'
+  _reportSort: '',
 
   init() {
     if (!this.data) this.data = {};
@@ -23129,13 +23129,56 @@ if (!this.data || !this.data.students) return;
 
     // Summary table
     h += '<div class="card"><div class="card-header">📋 质量分析统计表</div><div class="card-body no-pad">';
-    h += '<table><thead><tr><th>班别</th><th>任课教师</th><th>班级人数</th><th>考试人数</th><th>总分</th><th>平均分</th>';
-    h += '<th>合格人数</th><th>合格率</th><th>达优人数</th><th>优秀率</th>';
-    for (const r of d.scoreDistribution) h += '<th>' + r.label + '分</th>';
+        const srt = this._reportSort;
+    const isAsc = (k) => srt === k + '_asc';
+    const isDesc = (k) => srt === k + '_desc';
+    const arrow = (k) => isAsc(k) ? ' \u25b2' : (isDesc(k) ? ' \u25bc' : '');
+    const th = (label, key) => '<th class="sortable" data-sort="' + key + '" style="cursor:pointer">' + label + arrow(key) + '</th>';
+    h += '<table><thead><tr>';
+    h += '<th class="sortable" data-sort="" style="cursor:pointer">班别' + arrow('') + '</th>';
+    h += '<th>任课教师</th><th>班级人数</th><th>考试人数</th><th>总分</th>';
+    h += th('平均分', 'avg');
+    h += th('合格人数', 'passCount');
+    h += th('合格率', 'passRate');
+    h += th('达优人数', 'excellentCount');
+    h += th('优秀率', 'excellentRate');
+    for (const r of d.scoreDistribution) h += th(r.label + '分', 'dist_' + r.label);
     h += '</tr></thead><tbody>';
-    for (const cls of d.classes) {
+    // Bind sort click
+    setTimeout(function() {
+      document.querySelectorAll('#cReport .sortable').forEach(function(el) {
+        el.addEventListener('click', function() { App.sortReport(this.dataset.sort); });
+      });
+    }, 10);
+    const classes = [...d.classes];
+    if (srt) {
+      const parts = srt.split('_');
+      const sk = parts[0];
+      const dir = parts.length > 1 ? parts[parts.length-1] : '';
+      const asc = dir !== 'desc';
+      classes.sort(function(a, b) {
+        let va, vb;
+        if (sk === 'avg') { va = parseFloat(a.avg); vb = parseFloat(b.avg); }
+        else if (sk === 'passCount') { va = +(a.passCount||0); vb = +(b.passCount||0); }
+        else if (sk === 'passRate') { va = parseFloat(a.passRate||0); vb = parseFloat(b.passRate||0); }
+        else if (sk === 'excellentCount') { va = +(a.excellentCount||0); vb = +(b.excellentCount||0); }
+        else if (sk === 'excellentRate') { va = parseFloat(a.excellentRate||0); vb = parseFloat(b.excellentRate||0); }
+        else if (sk === 'dist') {
+          const di = parts.slice(1, -1).join('_');
+          const da = d.classDistributions[a.name] || [];
+          const db = d.classDistributions[b.name] || [];
+          const fi = d.scoreDistribution.findIndex(function(r) { return r.label === di; });
+          va = (fi >= 0 && da[fi]) ? da[fi].count : 0;
+          vb = (fi >= 0 && db[fi]) ? db[fi].count : 0;
+        }
+        va = typeof va === 'number' ? va : 0;
+        vb = typeof vb === 'number' ? vb : 0;
+        return asc ? va - vb : vb - va;
+      });
+    }
+    for (const cls of classes) {
       const dist = d.classDistributions[cls.name] || [];
-      h += '<tr><td class="left font-bold">' + Util.displayName(cls.name) + '</td><td>' + (d._teachers && d._teachers[cls.name] || '-') + '</td>';
+      h += '<tr><td class="left font-bold"><span style="cursor:pointer" onclick="App.showClassDetail(this)" data-cn="' + cls.name + '">' + Util.displayName(cls.name) + '</span></td><td>' + (d._teachers && d._teachers[cls.name] || '-') + '</td>';
       h += '<td>' + cls.total + '</td><td>' + cls.participated + '</td><td>' + cls.totalScore + '</td>';
       h += '<td class="font-bold">' + Util.fmt(cls.avg) + '</td>';
       h += '<td>' + (cls.passCount || '') + '</td><td>' + cls.passRate + '%</td>';
@@ -23222,6 +23265,20 @@ if (!this.data || !this.data.students) return;
   },
 
   // ===== Export Static HTML =====
+  sortReport(key) {
+    // Toggle sort direction: same key flips, different key defaults to ascending
+    const ascKey = key + '_asc';
+    const descKey = key + '_desc';
+    if (this._reportSort === ascKey) {
+      this._reportSort = descKey;
+    } else if (this._reportSort === descKey) {
+      this._reportSort = ascKey;
+    } else {
+      this._reportSort = ascKey;
+    }
+    this.renderReport();
+  },
+
   exportStaticHTML() {
     const d = this.data;
     if (!d) return;
