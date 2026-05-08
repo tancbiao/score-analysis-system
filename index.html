@@ -22720,6 +22720,8 @@ if (!this.data || !this.data.students) return;
     } else if (el && el.dataset) {
       // data-name may be just name or "name|class" (legacy format)
       let raw = el.dataset.name || '';
+      // renderScoreView uses encodeURIComponent, so decode first
+      try { raw = decodeURIComponent(raw); } catch(e) {}
       if (raw.indexOf('|') >= 0) {
         let parts = raw.split('|');
         sname = parts[0];
@@ -22727,6 +22729,7 @@ if (!this.data || !this.data.students) return;
       } else {
         sname = raw;
         sclass = el.dataset.class || '';
+        try { sclass = decodeURIComponent(sclass); } catch(e) {}
       }
     } else {
       return;
