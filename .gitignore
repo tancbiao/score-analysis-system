@@ -1,0 +1,30 @@
+# OS files
+Thumbs.db
+.DS_Store
+*.lnk
+
+# Backup / temp files
+~$*
+*.bak
+*.tmp
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.toc
+build/
+dist/
+
+# Workbuddy
+.workbuddy/
+
+# Test/export outputs
+*test*
+*test.docx
+*_broken_*
+*_beforeFix_*
+*_1.0版_*
+*_1.2版_*
+*.exe
+*.pkg
