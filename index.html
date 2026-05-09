@@ -22162,6 +22162,7 @@ const App = {
       h += '<div class="bar-bg"><div class="bar-fill ' + c + '" style="width:' + w + '%"></div></div>';
       h += '<div style="text-align:center;font-size:11px;color:var(--text-muted);margin-top:3px">' + r.label + '</div>';
       h += '</td>';
+          if (qbRow) h += qbRow;
     }
     h += '</tr></table></div></div>';
 
@@ -22343,7 +22344,16 @@ const App = {
 
     document.getElementById('classQTitle').innerHTML = '第' + q.id + '题（' + q.score + '分）· 正确答案: ' + q.answer + ' · 正确率: ' + rate + '%';
 
-    let h = '<div class="qa-card ' + cardCls + '">';
+    let h = '';
+    if (this.questionBank) {
+      const qb = this.questionBank.questions[qId];
+      if (qb) {
+        if (qb.material) h += '<div style="margin-bottom:8px;font-weight:600;color:var(--primary);font-size:13px;">📖 ' + qb.material + '</div>';
+        if (qb.materialText) h += '<div style="background:#f8f9fa;padding:10px;border-radius:6px;margin-bottom:10px;font-size:13px;line-height:1.7;color:#555;">' + qb.materialText + '</div>';
+        if (qb.text) h += '<div style="margin-bottom:10px;font-size:15px;font-weight:500;">' + qb.text + '</div>';
+      }
+    }
+    h += '<div class="qa-card ' + cardCls + '">';
     h += '<div class="qa-bd"><div class="opts">';
     const displayOpts = isTF ? [['T', '对'], ['F', '错']] : opts.map(o => [o, o]);
     for (const pair of displayOpts) {
@@ -22593,7 +22603,8 @@ const App = {
     const disparity = q.classDisparity || 0;
     const isDisparity = disparity >= 0.25;
     const disparityTag = isDisparity ? ' <span style="color:var(--danger);font-size:11px;">🔥班际差异' + (disparity * 100).toFixed(0) + '%</span>' : '';
-    h += '<div class="qa-hd" style="cursor:pointer;" onclick="App.showClassQDetail(' + q.id + ')" title="点击查看各班正确率"><span class="qi">第' + q.id + '题 · 正确答案: ' + q.answer + '</span>' + disparityTag;
+    h += '<div class="qa-hd" style="cursor:pointer;"       h += '<div onclick="App.showQuestionDetail(' + q.id + ')" style="display:flex;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);gap:10px;cursor:pointer;' + disparityBg + '" title="点击查看详细分析">';
+      h += '<span style="font-weight:700;min-width:60px;">第' + q.id + '题</span>';><span class="qi">第' + q.id + '题 · 正确答案: ' + q.answer + '</span>' + disparityTag;
     h += '<span class="qr" style="color:' + color + '">' + rate + '%</span></div>';
     h += '<div class="qa-bd">';
     if (type === 'worst') {
@@ -22768,25 +22779,6 @@ if (!this.data || !this.data.students) return;
     }
     h += '</p>';
 
-    // Show question bank material if available
-    if (this.questionBank) {
-      const qb = this.questionBank.questions[q.id];
-      if (qb && qb.materialText) {
-        h += '<div style="background:#f8f9fa;padding:12px;border-radius:8px;margin-bottom:12px;border:1px solid #e8e8e8;">';
-        h += '<div style="font-weight:600;color:var(--primary);margin-bottom:4px;">📖 ' + qb.material + '</div>';
-        h += '<div style="font-size:13px;line-height:1.7;color:#555;">' + qb.materialText + '</div>';
-        if (qb.materialImages && this.questionBank.images) {
-          const imgList = qb.materialImages.split(',').map(function(s){return s.trim()}).filter(Boolean);
-          for (const imgName of imgList) {
-            const imgData = this.questionBank.images[imgName];
-            if (imgData) {
-              h += '<img src="' + imgData + '" style="max-width:100%;margin-top:8px;border-radius:4px;max-height:200px;">';
-            }
-          }
-        }
-        h += '</div>';
-      }
-    }
     // 答题详情表
     if (d.questions && d.questions.length) {
       h += '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:#f5f5f5;">';
@@ -22805,9 +22797,35 @@ if (!this.data || !this.data.students) return;
         if (q.isTF) qtype = '判断';
         else if (q.isMulti) qtype = '多选';
         else qtype = '单选';
-
-        var resultClass = '', resultText = '—', anomalyText = '—';
-        if (ans === '' || ans === null) {
+        var qbRow = '';
+        if (this.questionBank) {
+          const qbData = this.questionBank.questions[q.id];
+          if (qbData && qbData.materialText) {
+            // Check if student got it wrong
+            var isWrong = false;
+            if (ans === '' || ans === null) isWrong = true;
+            else if (q.answer) {
+              var nA = ans.toUpperCase(), nC = q.answer.toUpperCase();
+              var matched = nA === nC || (nC==='T'&&nA==='A')||(nC==='F'&&nA==='B')||(nC==='A'&&nA==='T')||(nC==='B'&&nA==='F');
+              if (!matched) isWrong = true;
+              if (nA.length > 1 && /^[A-F]+$/.test(nA)) { isWrong = false; } // multi-answer not counted as wrong
+            }
+            if (isWrong) {
+              qbRow = '<tr><td colspan="6" style="padding:6px 12px;background:#fffbe6;border:1px solid #f5e6a0;border-radius:4px;">';
+              qbRow += '<div style="font-weight:600;color:var(--primary);font-size:12px;">\U0001f4d6 ' + qbData.material + '</div>';
+              qbRow += '<div style="font-size:12px;line-height:1.6;color:#666;margin:4px 0;">' + qbData.materialText + '</div>';
+              if (qbData.materialImages && this.questionBank.images) {
+                const imgs = qbData.materialImages.split(',').map(function(s){return s.trim()}).filter(Boolean);
+                for (const iname of imgs) {
+                  const idata = this.questionBank.images[iname];
+                  if (idata) qbRow += '<img src="' + idata + '" style="max-width:100%;margin-top:4px;border-radius:4px;max-height:160px;">';
+                }
+              }
+              qbRow += '</td></tr>';
+            }
+          }
+        }
+        var resultClass = '', resultText = '—', anomalyText = '—';        if (ans === '' || ans === null) {
           resultClass = 'text-danger';
           resultText = '缺答';
           anomalyText = '<span class="text-danger">缺答/漏涂</span>';
@@ -23040,11 +23058,9 @@ if (!this.data || !this.data.students) return;
     const d = this.data;
     let h = '';
 
-    h += '<div class="card"><div class="card-header">📄 命题卷分析 <span class="tip">上传命题卷（.docx 或 .xlsx）后可按材料/实验分组展示</span></div><div class="card-body">';
+    h += '<div class="card"><div class="card-header">📄 命题卷分析 <span class="tip">上传题库后，按材料/实验分组展示分析结果</span></div><div class="card-body">';
     h += '<div class="inline-flex gap-8 mb-16">';
-    h += '<button class="btn btn-primary" id="examBtn" onclick="document.getElementById(\'examFileInput\').click()">📤 上传命题卷</button>';
-    h += '<input type="file" id="examFileInput" accept=".docx,.xlsx,.xls" style="display:none" onchange="App.handleExamFile(event)">';
-    h += '<span id="examFileName" class="text-muted">未上传</span>';
+    h += '<span class="text-muted">✅ 已整合题库</span>';
     h += '</div></div>';
 
     // Structure overview
@@ -23066,7 +23082,7 @@ if (!this.data || !this.data.students) return;
     // Question list
     h += '<div class="section-title">📝 逐题分析</div>';
     if (!this.examQuestions.length) {
-      h += '<div class="empty"><div class="icon">📃</div>上传命题卷后（.docx 或 .xlsx），将按材料/实验分组展示分析结果</div>';
+      h += '<div class="empty"><div class="icon">📚</div>上传题库后，按材料/实验分组展示分析结果</div>';
     }
     for (const q of d.questions) {
       const rate = (q.correctRate * 100).toFixed(1);
@@ -23076,11 +23092,15 @@ if (!this.data || !this.data.students) return;
       const isDisparity = disparity >= 0.25;
       const disparityBg = isDisparity ? 'background:rgba(255,77,79,0.08);border-left:3px solid var(--danger);' : '';
       const disparityTag = isDisparity ? '<span style="color:var(--danger);font-size:11px;font-weight:700;margin-left:8px;">🔥 班际差异' + (disparity * 100).toFixed(0) + '%</span>' : '';
-      h += '<div onclick="App.showClassQDetail(' + q.id + ')" style="display:flex;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);gap:10px;cursor:pointer;' + disparityBg + '" title="点击查看各班正确率">';
+      h += '<div onclick="App.showQuestionDetail(' + q.id + ')" style="display:flex;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);gap:10px;cursor:pointer;' + disparityBg + '" title="点击查看详细分析">';
       h += '<span style="font-weight:700;min-width:60px;">第' + q.id + '题</span>';
       h += '<span style="color:' + color + ';font-weight:700;min-width:60px;">' + icon + ' ' + rate + '%</span>';
       h += '<span class="text-muted">答案: ' + q.answer + '</span>';
       h += disparityTag;
+      if (this.questionBank) {
+        const qb2 = this.questionBank.questions[q.id];
+        if (qb2 && qb2.material) h += ' <span class="text-muted" style="font-size:11px;">' + qb2.material + '</span>';
+      }
       if (q.answer !== 'T' && q.answer !== 'F') {
         const wrongOpts = ['A', 'B', 'C'].filter(o => o !== q.answer);
         const topWrong = wrongOpts.sort((a, b) => (q.optionCounts[b] || 0) - (q.optionCounts[a] || 0))[0];
@@ -23307,15 +23327,12 @@ if (!this.data || !this.data.students) return;
       const wb = XLSX.read(data, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws);
-
-      // Extract embedded images from xlsx zip
       const zip = await JSZip.loadAsync(data);
       const images = {};
       try {
         const mf = zip.folder('xl/media');
         if (mf) {
-          const entries = Object.entries(mf.files);
-          for (const [name, fo] of entries) {
+          for (const [name, fo] of Object.entries(mf.files)) {
             if (!fo.dir) {
               const b64 = await fo.async('base64');
               const baseName = name.replace('xl/media/', '');
@@ -23326,8 +23343,6 @@ if (!this.data || !this.data.students) return;
           }
         }
       } catch(e) { console.warn('QB image extract error:', e); }
-
-      // Build question map
       const questions = {};
       for (const r of rows) {
         const qId = parseInt(r['\u9898\u53f7']);
@@ -23342,10 +23357,11 @@ if (!this.data || !this.data.students) return;
           note: r['\u6ce8\u91ca/\u8003\u70b9'] || ''
         };
       }
-
       this.questionBank = { questions, images };
       const st = Util.$('qbStatus');
       if (st) st.textContent = '\u2705 \u9898\u5e93\u5df2\u52a0\u8f7d (' + Object.keys(questions).length + '\u9898)';
+      // Re-render exam match tab if visible
+      if (this.currentTab === 'examAnalysis') this.renderExamMatch();
       Util.toast('\u9898\u5e93\u52a0\u8f7d\u6210\u529f\uff01\u5171 ' + Object.keys(questions).length + ' \u9898', 'success');
     } catch(e) {
       Util.toast('\u9898\u5e93\u52a0\u8f7d\u5931\u8d25: ' + e.message, 'error', 7000);
