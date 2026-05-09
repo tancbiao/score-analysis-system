@@ -22603,8 +22603,8 @@ const App = {
     const disparity = q.classDisparity || 0;
     const isDisparity = disparity >= 0.25;
     const disparityTag = isDisparity ? ' <span style="color:var(--danger);font-size:11px;">🔥班际差异' + (disparity * 100).toFixed(0) + '%</span>' : '';
-    h += '<div class="qa-hd" style="cursor:pointer;"       h += '<div onclick="App.showQuestionDetail(' + q.id + ')" style="display:flex;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);gap:10px;cursor:pointer;' + disparityBg + '" title="点击查看详细分析">';
-      h += '<span style="font-weight:700;min-width:60px;">第' + q.id + '题</span>';><span class="qi">第' + q.id + '题 · 正确答案: ' + q.answer + '</span>' + disparityTag;
+    h += '<div onclick="App.showQuestionDetail(' + q.id + ')" style="display:flex;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);gap:10px;cursor:pointer;' + disparityBg + '" title="点击查看详细分析">'
+    h += '<span class="qi">第' + q.id + '题 · 正确答案: ' + q.answer + '';
     h += '<span class="qr" style="color:' + color + '">' + rate + '%</span></div>';
     h += '<div class="qa-bd">';
     if (type === 'worst') {
