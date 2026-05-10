@@ -47379,9 +47379,10 @@ if (!this.data || !this.data.students) return;
     
     // Determine grade from student IDs
     const sids = d.classes.map(function(c) { return c.students || []; }).flat().filter(function(s) { return s && s.id; }).map(function(s) { return String(s.id); });
-    const prefix = sids.length > 0 ? sids[0].substring(0, 4) : '0120';
-    const gradeMap = { '0120': '6', '0121': '5' };
-    const grade = gradeMap[prefix] || '6';
+    var sampleSid = sids.length > 0 ? sids[0] : '01200602';
+    var yearCode = sampleSid.length >= 4 ? sampleSid.substring(2, 4) : '20';
+    var yearMap = { '20': '6', '21': '5', '22': '4', '23': '3' };
+    var grade = yearMap[yearCode] || '6';
     
     // Build questions array
     const questions = d.questions.map(function(q, i) {
