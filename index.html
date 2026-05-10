@@ -47389,6 +47389,7 @@ if (!this.data || !this.data.students) return;
       var entry = { id: 'x' + (i + 1), question: q.text || q.q || '', options: q.options || q.opts || [], answer: q.answer || 0 };
       if (q.material) entry.material = q.material;
       if (q.materialTitle) entry.materialTitle = q.materialTitle;
+      if (q.image) entry.image = q.image;
       return entry;
     });
     
