@@ -41045,6 +41045,8 @@ tr.no-hover:hover td { background: inherit; }
 
 .btn-info { background:#1890ff;border-color:#1890ff;color:#fff; }
 .btn-info:hover { background:#096dd9; }
+.btn-warning { background:#faad14;border-color:#faad14;color:#fff; }
+.btn-warning:hover { background:#d48806; }
 </style>
 
 </head>
@@ -47225,6 +47227,7 @@ if (!this.data || !this.data.students) return;
 
     h += '<button class="btn btn-success" onclick="App.exportStaticHTML()" style="background:#52C41A;border-color:#52C41A">🌐 导出静态网页</button>';
     h += '<button class="btn btn-info" onclick="App.syncStudents()" style="background:#1890ff;border-color:#1890ff;margin-left:8px">🔗 同步到复习系统</button>';
+    h += '<button class="btn btn-warning" onclick="App.syncQuestions()" style="background:#faad14;border-color:#faad14;margin-left:8px">📚 同步题库到\u722c\u5854</button>';
 
     h += '<p class="text-muted" style="margin-top:12px;font-size:12px;">静态网页可脱离本系统直接打开查看，不含上传/送分等交互功能<br>';
 
@@ -47370,6 +47373,39 @@ if (!this.data || !this.data.students) return;
 
 
   // Sync student data to kexvefuxi review system
+  async syncQuestions() {
+    const d = this.data;
+    if (!d || !d.classes || !d.questions) { Util.toast('\u6ca1\u6709\u9898\u76ee\u6570\u636e\uff0c\u8bf7\u786e\u8ba4\u4e0a\u4f20\u7684\u6587\u4ef6\u542b\u6709\u9898\u76ee', 'error'); return; }
+    
+    // Determine grade from student IDs
+    const sids = d.classes.map(function(c) { return c.students || []; }).flat().filter(function(s) { return s && s.id; }).map(function(s) { return String(s.id); });
+    const prefix = sids.length > 0 ? sids[0].substring(0, 4) : '0120';
+    const gradeMap = { '0120': '6', '0121': '5' };
+    const grade = gradeMap[prefix] || '6';
+    
+    // Build questions array
+    const questions = d.questions.map(function(q, i) {
+      var entry = { id: 'x' + (i + 1), question: q.text || q.q || '', options: q.options || q.opts || [], answer: q.answer || 0 };
+      if (q.material) entry.material = q.material;
+      if (q.materialTitle) entry.materialTitle = q.materialTitle;
+      return entry;
+    });
+    
+    if (questions.length === 0) { Util.toast('\u6ca1\u6709\u53ef\u540c\u6b65\u7684\u9898\u76ee', 'error'); return; }
+    
+    try {
+      const res = await fetch('https://api.kexvefuxi.cn/api/questionbank/' + grade, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questions: questions })
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const result = await res.json();
+      Util.toast('\u2191 \u540c\u6b65\u6210\u529f\uff01\u5c06 ' + result.count + ' \u9053\u9898\u540c\u6b65\u5230' + grade + '\u5e74\u7ea7\u722c\u5854\u9898\u5e93', 'success');
+    } catch(e) {
+      Util.toast('\u540c\u6b65\u5931\u8d25: ' + e.message, 'error');
+    }
+  },
+
   async syncStudents() {
     const d = this.data;
     if (!d || !d.classes) { Util.toast('\u6ca1\u6709\u5b66\u751f\u6570\u636e\uff0c\u8bf7\u5148\u4e0a\u4f20\u6587\u4ef6', 'error'); return; }
