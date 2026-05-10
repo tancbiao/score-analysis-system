@@ -41167,7 +41167,10 @@ tr.no-hover:hover td { background: inherit; }
 
 </div>
 
-
+<div class="info-bar" style="margin-top:8px;justify-content:center;">
+  <button class="btn btn-primary" id="syncBtn" onclick="App.syncToReviewSystem()" style="padding:8px 24px;font-size:0.9em;">&#x1F680; 同步到复习系统</button>
+  <span id="syncStatus" style="font-size:0.85em;color:rgba(255,255,255,0.5);margin-left:12px;align-self:center;"></span>
+</div>
 
 <!-- ===== Tab Bar ===== -->
 
@@ -43198,6 +43201,55 @@ const App = {
       console.error(e);
     }
   },
+
+  async syncToReviewSystem() {
+    const status = document.getElementById('syncStatus');
+    status.textContent = '同步中...';
+    status.style.color = '#ffd700';
+    try {
+      const students = [];
+      for (const s of (this.data && this.data.students ? this.data.students : [])) {
+        const wrongList = (s.wrongQuestions || '').split(/[,，、\s]+/).filter(Boolean);
+        students.push({
+          studentId: s.id, name: s.name, className: s.className,
+          wrongQuestions: wrongList,
+          answers: s.answers || [],
+          score: s.score || 0
+        });
+      }
+      let synced = { students: 0, questions: 0 };
+      if (students.length > 0) {
+        const res = await fetch('https://api.kexvefuxi.cn/api/students/batch', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ students })
+        });
+        if (res.ok) { const d = await res.json(); synced.students = d.count || 0; }
+      }
+      if (this.questionBank && Object.keys(this.questionBank.questions).length > 0) {
+        const qb = this.questionBank.questions;
+        const questions = Object.entries(qb).map(([qId, q]) => ({
+          id: 'qb_' + qId, question: q.text, options: q.options || [],
+          answer: typeof q.answer === 'number' ? q.answer : (['A','B','C','D','E'].indexOf(q.answer) + 1) || 0,
+          material: q.materialText || '', materialImages: q.materialImages || ''
+        }));
+        if (questions.length > 0) {
+          const grade = students.length > 0 ? students[0].studentId.substring(0, 4) : '6';
+          const res = await fetch('https://api.kexvefuxi.cn/api/questionbank/' + grade, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ questions })
+          });
+          if (res.ok) { const d = await res.json(); synced.questions = d.count || 0; }
+        }
+      }
+      status.textContent = '✅ 同步成功! 学生' + synced.students + '人, 题库' + synced.questions + '题';
+      status.style.color = '#4ecdc4';
+    } catch(e) {
+      status.textContent = '❌ 同步失败: ' + e.message;
+      status.style.color = '#ff6b6b';
+      console.error(e);
+    }
+  },
+
 
 
   checkLibraries() {
