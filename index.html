@@ -41042,6 +41042,9 @@ tr.no-hover:hover td { background: inherit; }
 
 }
 
+
+.btn-info { background:#1890ff;border-color:#1890ff;color:#fff; }
+.btn-info:hover { background:#096dd9; }
 </style>
 
 </head>
@@ -47221,6 +47224,7 @@ if (!this.data || !this.data.students) return;
     h += '<button class="btn btn-primary" onclick="App.exportReport()" style="margin-right:12px">📥 导出分析报告 (DOCX)</button>';
 
     h += '<button class="btn btn-success" onclick="App.exportStaticHTML()" style="background:#52C41A;border-color:#52C41A">🌐 导出静态网页</button>';
+    h += '<button class="btn btn-info" onclick="App.syncStudents()" style="background:#1890ff;border-color:#1890ff;margin-left:8px">🔗 同步到复习系统</button>';
 
     h += '<p class="text-muted" style="margin-top:12px;font-size:12px;">静态网页可脱离本系统直接打开查看，不含上传/送分等交互功能<br>';
 
@@ -47363,6 +47367,44 @@ if (!this.data || !this.data.students) return;
 
 
   // ===== Export =====
+
+
+  // Sync student data to kexvefuxi review system
+  async syncStudents() {
+    const d = this.data;
+    if (!d || !d.classes) { Util.toast('\u6ca1\u6709\u5b66\u751f\u6570\u636e\uff0c\u8bf7\u5148\u4e0a\u4f20\u6587\u4ef6', 'error'); return; }
+    
+    const students = [];
+    for (const cls of d.classes) {
+      if (!cls.students) continue;
+      for (const s of cls.students) {
+        if (!s.id) continue;
+        students.push({
+          studentId: String(s.id),
+          name: s.name || '',
+          className: cls.name || '',
+          score: s.score || 0,
+          wrongQuestions: s.wrongQuestions || []
+        });
+      }
+    }
+    
+    if (students.length === 0) { Util.toast('\u6ca1\u6709\u53ef\u540c\u6b65\u7684\u5b66\u751f\u6570\u636e', 'error'); return; }
+    
+    try {
+      const res = await fetch('https://api.kexvefuxi.cn/api/students/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ students })
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const result = await res.json();
+      Util.toast('\u2191 \u540c\u6b65\u6210\u529f\uff01\u5171\u540c\u6b65 ' + result.count + ' \u540d\u5b66\u751f\u6570\u636e\u5230\u590d\u4e60\u7cfb\u7edf', 'success');
+    } catch(e) {
+      Util.toast('\u540c\u6b65\u5931\u8d25: ' + e.message, 'error');
+      console.error(e);
+    }
+  },
 
   async exportReport() {
 
