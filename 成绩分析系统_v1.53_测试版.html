@@ -23293,6 +23293,7 @@ if (!this.data || !this.data.students) return;
     h += '<div class="card"><div class="card-body" style="text-align:center;padding:20px;">';
     h += '<button class="btn btn-primary" onclick="App.exportReport()" style="margin-right:12px">📥 导出分析报告 (DOCX)</button>';
     h += '<button class="btn btn-success" onclick="App.exportStaticHTML()" style="background:#52C41A;border-color:#52C41A">🌐 导出静态网页</button>';
+    h += '<button class="btn btn-warning" id="btnSyncTower" onclick="App.syncToTower()" style="background:#f59e0b;border-color:#f59e0b;margin-left:12px;">🔄 同步题库到爬塔</button>';
     h += '<p class="text-muted" style="margin-top:12px;font-size:12px;">静态网页可脱离本系统直接打开查看，不含上传/送分等交互功能<br>';
     h += '<span style="color:var(--warning)">⚠️ 注意：导出功能需要通过 HTTP 服务器访问本页面（如 Live Server），直接双击打开无法导出</span></p>';
     h += '</div></div>';
@@ -23301,6 +23302,131 @@ if (!this.data || !this.data.students) return;
   },
 
   // ===== Export Static HTML =====
+  // ===== 同步题库到爬塔（科学复习系统） =====
+  syncToTower() {
+    // 检查是否上传了题库
+    if (!this.questionBank || !this.questionBank.questions) {
+      Util.toast('⚠️ 请先在标题下方上传题库文件（.xlsx）', 'error', 5000);
+      return;
+    }
+    if (!this.data || !this.data.students) {
+      Util.toast('⚠️ 请先上传门口易测成绩文件', 'error', 5000);
+      return;
+    }
+
+    const API = 'https://api.kexvefuxi.cn/api';
+
+    // 弹出对话框输入学号
+    const sid = prompt('请输入要同步的学生学号（如 20230101）：', '');
+    if (!sid || !sid.trim()) return;
+    const studentId = sid.trim();
+
+    // 在成绩数据中查找该学生
+    const students = this.data.students || [];
+    let student = null;
+    for (const s of students) {
+      if (String(s.id || '') === studentId || String(s.name || '') === studentId) {
+        student = s;
+        break;
+      }
+    }
+    if (!student) {
+      Util.toast('❌ 未找到学号 ' + studentId + ' 的学生，请核对学号', 'error', 5000);
+      return;
+    }
+
+    // 推断年级
+    let grade = '6'; // 默认六年级
+    if (studentId.length >= 4) {
+      const yearCode = studentId.substring(2, 4);
+      const yearMap = { '20': '6', '21': '5', '22': '4', '23': '3' };
+      if (yearMap[yearCode]) grade = yearMap[yearCode];
+    }
+
+    Util.toast('🔄 正在同步 ' + student.name + ' 的题库和错题到爬塔...', 'info', 3000);
+    const btn = document.getElementById('btnSyncTower');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 同步中...'; }
+
+    const self = this;
+    (async function() {
+      try {
+        // 1. 构建题库数据（所有题目）
+        const qb = self.questionBank.questions;
+        const questions = [];
+        for (const [qId, q] of Object.entries(qb)) {
+          questions.push({
+            id: String(qId),
+            question: q.text || '',
+            options: q.options || [],
+            answer: q.answer || '',
+            material: q.material || '',
+            materialText: q.materialText || '',
+            materialImages: q.materialImages || '',
+            note: q.note || ''
+          });
+        }
+
+        // 2. 推送题库到服务器
+        const qbRes = await fetch(API + '/questionbank/' + grade, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ questions: questions })
+        });
+        if (!qbRes.ok) throw new Error('题库推送失败 HTTP ' + qbRes.status);
+
+        // 3. 构建学生错题数据
+        const questionsArr = self.examQuestions || [];
+        const wrongIds = [];
+        const answers = {};
+
+        if (student.answers && student.answers.length > 0) {
+          for (let qi = 0; qi < student.answers.length && qi < questionsArr.length; qi++) {
+            const q = questionsArr[qi];
+            const ans = student.answers[qi];
+            const qId = String(q.id || (qi + 1));
+            answers[qId] = ans || '';
+
+            // 判断是否答错
+            if (ans === null || ans === '' || ans === undefined) {
+              wrongIds.push(qId);
+            } else {
+              const aStr = String(ans).trim();
+              const correctAns = String(q.answer || '').toUpperCase();
+              const userAns = aStr.toUpperCase();
+              const matched = userAns === correctAns ||
+                (correctAns === 'T' && userAns === 'A') || (correctAns === 'F' && userAns === 'B') ||
+                (correctAns === 'A' && userAns === 'T') || (correctAns === 'B' && userAns === 'F');
+              if (!matched) wrongIds.push(qId);
+            }
+          }
+        }
+
+        // 4. 推送学生错题信息
+        const infoRes = await fetch(API + '/student/info/' + studentId, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            studentId: studentId,
+            studentName: student.name || '',
+            wrongQuestions: wrongIds,
+            answers: answers,
+            grade: grade,
+            className: student.className || '',
+            score: student.score || 0
+          })
+        });
+        if (!infoRes.ok) throw new Error('错题推送失败 HTTP ' + infoRes.status);
+
+        Util.toast('✅ 同步成功！题库 ' + questions.length + ' 题，错题 ' + wrongIds.length + ' 条\n请在科学复习系统中点击「成绩分析」查看', 'success', 6000);
+      } catch(e) {
+        console.error('同步失败:', e);
+        Util.toast('❌ 同步失败: ' + e.message, 'error', 7000);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🔄 同步题库到爬塔'; }
+      }
+    })();
+  },
+
     async loadQuestionBank(file) {
     try {
       const data = await file.arrayBuffer();
